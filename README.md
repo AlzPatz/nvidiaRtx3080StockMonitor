@@ -1,0 +1,1 @@
+# nvidiaRtx3080StockMonitor
