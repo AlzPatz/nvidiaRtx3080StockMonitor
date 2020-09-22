@@ -111,8 +111,8 @@ while loop:
         quit()
     
     if out_of_stock_search_failure_count >= search_failure_report_threshold:
-        out_of_stock_search_failure_count = 0
         SendSmsMessage("WARNING: Search has failed to confirm out of stock " + str(out_of_stock_search_failure_count) + " times, please check website")
+        out_of_stock_search_failure_count = 0
 
     time_of_current_check = datetime.utcnow()
 
