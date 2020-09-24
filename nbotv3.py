@@ -30,7 +30,9 @@ twilio_target_phone_number = 'ADD'
 
 def IsStillOutOfStock():
     req = requests.get(URL_Direct)
-    return direct_link_regex.search(req.text) != None
+    if req.ok:
+        return direct_link_regex.search(req.text) != None
+    return True
 
 def SendSmsMessage(message):
     print("Sending SMS: " + message)
