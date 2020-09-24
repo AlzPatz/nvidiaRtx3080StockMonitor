@@ -9,7 +9,7 @@ import re
 
 URL_FilteredShop = "https://www.nvidia.com/en-gb/shop/geforce/gpu/?page=1&limit=9&locale=en-gb&gpu=RTX%203080&category=GPU&manufacturer=NVIDIA&manufacturer_filter=NVIDIA~1,ASUS~0,EVGA~0,GAINWARD~0,GIGABYTE~0,MSI~0,PALIT~2,PNY~0,ZOTAC~0"
 
-seconds_between_checks = 10
+seconds_between_checks = 3
 
 times_to_report_operation = [
     time(8, 0, 0, 0),
@@ -29,14 +29,16 @@ chrome_options.add_argument('--disable-dev-shm-usage')
 
 rtx_regex = re.compile('.*RTX 3080.*', flags=re.IGNORECASE)
 out_of_stock_regex = re.compile('.*out.of.stock.*', flags=re.IGNORECASE)
+check_availability_regex = re.compile('.*check.availability.*', flags=re.IGNORECASE)
 
 out_of_stock_search_failure_count = 0
-search_failure_report_threshold = 3
+search_failure_report_threshold = 4
 
 twilio_account_sid = 'REMOVED'
 twilio_auth_token = 'REMOVED'
 twilio_source_phone_number = 'REMOVED'
 twilio_target_phone_number = 'REMOVED'
+
 
 def IsStillOutOfStock():
     global out_of_stock_search_failure_count
@@ -48,40 +50,35 @@ def IsStillOutOfStock():
     soup = BeautifulSoup(html, 'html.parser')
 
     #Seach for Featured Container
-    potential_matches = soup.find_all('div', attrs={'class' : re.compile('featured-container.*')})
+    potential_matches_featured = soup.find_all('div', attrs={'class' : re.compile('featured-container.*')})
+    potential_matches_product = soup.find_all('div', attrs={'class' : re.compile('product-details-container.*')})
 
     #If no containers found, let's assume a bad page load, but err on side of caution, so do not trigger
     #We add to a count however, too many fails in a row should be a manual check
-    if len(potential_matches) == 0:
+    if len(potential_matches_product) + len(potential_matches_featured) == 0:
         out_of_stock_search_failure_count = out_of_stock_search_failure_count + 1
         return True
 
-    for container in potential_matches:
-        #Search for tags containing product names
-        product_names = container.find_all('h2', attrs={'class' : 'name'})
+    rtx_3080_found = False
+    out_of_stock_found = False
 
-        #If none found, again err on the side of caution
-        if len(product_names) == 0:
-            out_of_stock_search_failure_count = out_of_stock_search_failure_count + 1
-            return True
+    for container in potential_matches_featured:
+        if rtx_regex.search(container.text) != None:
+            rtx_3080_found = True
+            if (out_of_stock_regex.search(container.text) != None) or (check_availability_regex.search(container.text) != None):
+                out_of_stock_found = True
 
-        rtx_3080_found = False
-        for name in product_names:
-            if rtx_regex.search(name.text) != None:
-                rtx_3080_found = True
-                buy_links = container.find_all('a', attrs={ 'class' : re.compile('featured-buy-link.*')})
-                out_of_stock_found = False
-                for link in buy_links:
-                    if out_of_stock_regex.search(link.text) != None:
-                        out_of_stock_found = True
-        
-        #If RTX 3080 product is not found, err on the side of caution again, but update failure count
-        if rtx_3080_found == False:
-            out_of_stock_search_failure_count = out_of_stock_search_failure_count + 1
-            return True
-        
-        #We found the product, now we can return whether out of stock was found or not
+    for container in potential_matches_product:
+        if rtx_regex.search(container.text) != None:
+            rtx_3080_found = True
+            if (out_of_stock_regex.search(container.text) != None) or (check_availability_regex.search(container.text) != None):
+                out_of_stock_found = True
+
+    if rtx_3080_found:
         return out_of_stock_found
+    else:
+        out_of_stock_search_failure_count = out_of_stock_search_failure_count + 1
+        return True
 
 def SendSmsMessage(message):
     print("Sending SMS: " + message)
@@ -106,8 +103,10 @@ loop = True
 
 while loop:
     if IsStillOutOfStock() == False:
-        SendSmsMessage("ALERT: Item appears to be back in stock!!! Time is: " + datetime.now().strftime("%H:%M:%S"))
-        quit()
+        #Reconfirm (Twice if needed)
+        if  (IsStillOutOfStock() == False): #and (IsStillOutOfStock() == False):
+            SendSmsMessage("ALERT: Item appears to be back in stock!!! Time is: " + datetime.now().strftime("%H:%M:%S"))
+            quit()
     
     if out_of_stock_search_failure_count >= search_failure_report_threshold:
         SendSmsMessage("WARNING: Search has failed to confirm out of stock " + str(out_of_stock_search_failure_count) + " times, please check website")
