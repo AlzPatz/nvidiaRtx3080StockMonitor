@@ -50,7 +50,6 @@ def IsStillOutOfStock():
     potential_matches_product = soup.find_all('div', attrs={'class' : re.compile('product-details-container.*')})
 
     #If no containers found, let's assume a bad page load, but err on side of caution, so do not trigger
-    #We add to a count however, too many fails in a row should be a manual check
     if len(potential_matches_product) + len(potential_matches_featured) == 0:
         return True
 
