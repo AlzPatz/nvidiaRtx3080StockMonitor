@@ -91,26 +91,47 @@ def SendSmsMessage(message):
 
 # Program Entry:
 
-if IsStillOutOfStock() == True:
-    SendSmsMessage("NVIDIA Monitor set up Successful!")
-else:
-    SendSmsMessage("Monitor set up not successful (or item is in stock), could not confirm item is out of stock -> Program has terminated")
-    quit()
+def stock_string(out_of_stock):
+    if out_of_stock == True:
+        return "out of stock"
+    else:
+        return "IN STOCK"
+
+def SendMessage(out_of_stock):
+    SendSmsMessage("ALERT SCRAPER: " + str(stock_string(out_of_stock)) + " -> at "+ datetime.now().strftime("%H:%M:%S"))
+
+def IsOutOfHours():
+    now = datetime.utcnow().time()
+    return  now < time(7, 0, 0, 0) or now >= time(22, 0, 0, 0)
+
+# Program Entry:
+
+out_of_stock = IsStillOutOfStock()
+
+SendSmsMessage("NVIDIA SCRAPER set up: Initial State: " + str(stock_string(out_of_stock)) + " -> at " + datetime.now().strftime("%H:%M:%S"))
 
 time_of_last_check = datetime.utcnow()
 
 loop = True
 
+has_sent_one_message_out_of_hours = False
+
 while loop:
-    if IsStillOutOfStock() == False:
-        #Reconfirm (Twice if needed)
-        if  (IsStillOutOfStock() == False): #and (IsStillOutOfStock() == False):
-            SendSmsMessage("ALERT: Item appears to be back in stock!!! Time is: " + datetime.now().strftime("%H:%M:%S"))
-            quit()
-    
-    if out_of_stock_search_failure_count >= search_failure_report_threshold:
-        SendSmsMessage("WARNING: Search has failed to confirm out of stock " + str(out_of_stock_search_failure_count) + " times, please check website")
-        out_of_stock_search_failure_count = 0
+    new_out_of_stock = IsStillOutOfStock()
+    # Double Check 
+    if new_out_of_stock == False:
+         new_out_of_stock = IsStillOutOfStock()
+
+    if new_out_of_stock != out_of_stock:
+        out_of_stock = new_out_of_stock
+        if IsOutOfHours() == True:
+            if has_sent_one_message_out_of_hours == False:
+                has_sent_one_message_out_of_hours = True
+                SendSmsMessage("SCRAPER: As it is out of hours, will supress any further messages until morning")
+                SendMessage(out_of_stock)
+        else:
+            has_sent_one_message_out_of_hours = False
+            SendMessage(out_of_stock)
 
     time_of_current_check = datetime.utcnow()
 
@@ -119,7 +140,7 @@ while loop:
 
     for t in times_to_report_operation:
         if last_utc < t and now_utc >= t:
-            SendSmsMessage("NVIDIA bot reporting in - all systems OK!")
+            SendSmsMessage("NVIDIA bot reporting in - all systems OK! State: " + str(stock_string(out_of_stock)) + " -> at " + datetime.now().strftime("%H:%M:%S"))
 
     time_of_last_check = time_of_current_check
 
