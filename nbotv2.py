@@ -31,14 +31,10 @@ rtx_regex = re.compile('.*RTX 3080.*', flags=re.IGNORECASE)
 out_of_stock_regex = re.compile('.*out.of.stock.*', flags=re.IGNORECASE)
 check_availability_regex = re.compile('.*check.availability.*', flags=re.IGNORECASE)
 
-out_of_stock_search_failure_count = 0
-search_failure_report_threshold = 4
-
 twilio_account_sid = 'REMOVED'
 twilio_auth_token = 'REMOVED'
 twilio_source_phone_number = 'REMOVED'
 twilio_target_phone_number = 'REMOVED'
-
 
 def IsStillOutOfStock():
     global out_of_stock_search_failure_count
@@ -56,7 +52,6 @@ def IsStillOutOfStock():
     #If no containers found, let's assume a bad page load, but err on side of caution, so do not trigger
     #We add to a count however, too many fails in a row should be a manual check
     if len(potential_matches_product) + len(potential_matches_featured) == 0:
-        out_of_stock_search_failure_count = out_of_stock_search_failure_count + 1
         return True
 
     rtx_3080_found = False
@@ -77,7 +72,6 @@ def IsStillOutOfStock():
     if rtx_3080_found:
         return out_of_stock_found
     else:
-        out_of_stock_search_failure_count = out_of_stock_search_failure_count + 1
         return True
 
 def SendSmsMessage(message):
