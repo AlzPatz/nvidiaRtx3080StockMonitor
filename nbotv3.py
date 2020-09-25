@@ -22,6 +22,7 @@ times_to_report_operation = [
 ]
 
 direct_link_regex = re.compile('.*"productIsInStock": "false"', flags=re.IGNORECASE)
+direct_link_regex_2 = re.compile('.*"status": "PRODUCT_INVENTORY_OUT_OF_STOCK"', flags=re.IGNORECASE)
 
 twilio_account_sid = 'ADD'
 twilio_auth_token = 'ADD'
@@ -30,8 +31,15 @@ twilio_target_phone_number = 'ADD'
 
 def IsStillOutOfStock():
     req = requests.get(URL_Direct)
+    obj = json.loads(req.text)
+    
     if req.ok:
-        return direct_link_regex.search(req.text) != None
+        try:
+            status = obj['products']['product'][0]['inventoryStatus']
+            return status['productIsInStock'] == 'false' and status['status'] == 'PRODUCT_INVENTORY_OUT_OF_STOCK'
+        #return ((direct_link_regex.search(req.text) != None) or (direct_link_regex_2.search(req.text) != None))
+        except:
+            return True
     return True
 
 def SendSmsMessage(message):
@@ -43,22 +51,28 @@ def SendSmsMessage(message):
         to=twilio_target_phone_number
     )
 
+def stock_string(out_of_stock):
+    if out_of_stock == True:
+        return "out of stock"
+    else:
+        return "IN STOCK"
+
 # Program Entry:
 
-if IsStillOutOfStock() == True:
-    SendSmsMessage("NVIDIA Monitor set up Successful!")
-else:
-    SendSmsMessage("Monitor set up not successful (or item is in stock), could not confirm item is out of stock -> Program has terminated")
-    quit()
+out_of_stock = IsStillOutOfStock()
+
+SendSmsMessage("NVIDIA Monitor set up: Initial State: " + str(stock_string(out_of_stock)) + " -> at " + datetime.now().strftime("%H:%M:%S"))
 
 time_of_last_check = datetime.utcnow()
 
 loop = True
 
 while loop:
-    if IsStillOutOfStock() == False:
-        SendSmsMessage("ALERT: Item appears to be back in stock!!! Time is: " + datetime.now().strftime("%H:%M:%S"))
-        quit()
+    new_out_of_stock = IsStillOutOfStock()
+
+    if new_out_of_stock != out_of_stock:
+        out_of_stock = new_out_of_stock
+        SendSmsMessage("ALERT: " + str(stock_string(out_of_stock)) + " -> at "+ datetime.now().strftime("%H:%M:%S"))
 
     time_of_current_check = datetime.utcnow()
 
